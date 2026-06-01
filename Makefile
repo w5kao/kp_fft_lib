@@ -22,7 +22,7 @@ clean:
 	rm -f *.o
 
 distclean: clean 
-	rm my_fft_test
+	rm kpfft_test
 
 
 
