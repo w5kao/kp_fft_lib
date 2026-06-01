@@ -1,5 +1,5 @@
-#ifndef _MY_FFT_H
-#define _MY_FFT_H
+#ifndef _KPFFT_H
+#define _KPFFT_H
 
 #include <stdio.h>
 #include <stdlib.h>
