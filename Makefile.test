@@ -56,7 +56,7 @@ else
 endif
 
 
-all: my_fft_test
+all: kpfft_test
 
 
 %.o: %.c
@@ -68,23 +68,23 @@ all: my_fft_test
 %_b128.o: %.c
 	$(cCC) -c $(CXXFLAGS) -DBLOCK_SIDE_SIZE=128 -o $@ $<
 
-my_fft_test: my_fft_test.o my_fft_lib.o my_thr_lib.o
+kpfft_test: kpfft_test.o kpfft_lib.o my_thr_lib.o
 	$(cCC) -Wall -o $@ $^ $(LDFLAGS_GCC)
 
-my_fft_test_v: my_fft_test_v.o my_fft_lib_v.o my_thr_lib.o
+kpfft_test_v: kpfft_test_v.o kpfft_lib_v.o my_thr_lib.o
 	$(cCC) -Wall -o $@ $^ $(LDFLAGS_GCC)
 
-my_fft_test_b128: my_fft_test_b128.o my_fft_lib_b128.o my_thr_lib.o
+kpfft_test_b128: kpfft_test_b128.o kpfft_lib_b128.o my_thr_lib.o
 	$(cCC) -Wall -o $@ $^ $(LDFLAGS_GCC)
 
-block_side_test: block_side_test_v.o my_fft_lib_v.o my_thr_lib.o
+block_side_test: block_side_test_v.o kpfft_lib_v.o my_thr_lib.o
 	$(cCC) -Wall -o $@ $^ $(LDFLAGS_GCC)
 
 clean:
 	rm -f *.o
 
 distclean: clean 
-	rm my_fft_test
+	rm kpfft_test
 
 
 

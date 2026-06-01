@@ -5,6 +5,6 @@
 
 for i in {4..12}; do
 	size=$(echo $i*1024| bc)
-	./my_fft_test $size $size 10 8 size_test.dat
+	./kpfft_test $size $size 10 8 size_test.dat
 done
 

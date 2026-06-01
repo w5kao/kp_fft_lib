@@ -23,7 +23,7 @@
 #endif
 #endif
 
-#define LIBNAME(x) my_fft_ ## x
+#define LIBNAME(x) kpfft_ ## x
 
 typedef struct my_plan {
 	void *plans_X, *plans_Y;

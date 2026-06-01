@@ -248,7 +248,7 @@ int main (int argc, char** argv) {
 	unsigned long int i, runs;
 	FILE *f_p;
 	fftw_plan normal_plan;
-	my_fft_plan plan_fwd;
+	kpfft_plan plan_fwd;
 	char wisdom[256];
 	char *output = NULL;
 	long int cpu0, cpu1;
@@ -301,7 +301,7 @@ int main (int argc, char** argv) {
 
 	ops = 5*NX*NY*log2(NX*NY);
 
-	my_fft_init (threads_number);
+	kpfft_init (threads_number);
 
 	size_t sz = (NX)*(NY)*sizeof(double complex);
 
@@ -329,13 +329,13 @@ int main (int argc, char** argv) {
 	measure_start();
 	switch(mode) {
 		case MODE_C:
-			plan_fwd = my_fft_plan_dft_2d (in, out, out2, NX, NY, +1, PLAN_FLAGS, threads_number);
+			plan_fwd = kpfft_plan_dft_2d (in, out, out2, NX, NY, +1, PLAN_FLAGS, threads_number);
 			break;
 		case MODE_C2R:
-			plan_fwd = my_fft_plan_dft_c2r_2d (in, (double*)out, out2, NX, NY, +1, PLAN_FLAGS, threads_number);
+			plan_fwd = kpfft_plan_dft_c2r_2d (in, (double*)out, out2, NX, NY, +1, PLAN_FLAGS, threads_number);
 			break;
 		case MODE_R2C:
-			plan_fwd = my_fft_plan_dft_r2c_2d ((double*)in, out, out2, NX, NY, -1, PLAN_FLAGS, threads_number);
+			plan_fwd = kpfft_plan_dft_r2c_2d ((double*)in, out, out2, NX, NY, -1, PLAN_FLAGS, threads_number);
 			break;
 	}
 	seconds = measure_end();
@@ -364,7 +364,7 @@ int main (int argc, char** argv) {
 		measure_start();
 		cpu0 = get_cpu();
 		for (i = 0; i < num_reps; ++i) {
-			my_fft_execute (plan_fwd);
+			kpfft_execute (plan_fwd);
 		}
 		seconds = measure_end();
 		cpu1 = get_cpu();
@@ -397,9 +397,9 @@ int main (int argc, char** argv) {
 	}
 #endif /* VERBOSE */
 
-	my_fft_destroy_plan (plan_fwd);
+	kpfft_destroy_plan (plan_fwd);
 
-	my_fft_clear();
+	kpfft_clear();
 
 #ifdef FORGET_WISDOM_BEFORE_FFTW
 	fftw_forget_wisdom();

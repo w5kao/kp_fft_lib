@@ -171,7 +171,7 @@ void LIBNAME(destroy_plan) (LIBNAME(plan) plan) {
 	free (plan);
 }
 
-void my_fft_execute (LIBNAME(plan) plan) {
+void LIBNAME(execute) (LIBNAME(plan) plan) {
 	plan->exec(plan);
 }
 
