@@ -2,7 +2,7 @@
 CFLAGS=-march=native -Ofast -g -flto -std=gnu99 -W -pedantic -Wcast-qual -Wpointer-arith -Wcast-align \
 	-mavx2 -mfma -ffast-math @CFLAGS@ @FFTW_CFLAGS@
 
-LDFLAGS=@LDFLAGS@ @FFTW_LIBS@ -lm -lpthread
+LDFLAGS=@LDFLAGS@ @FFTW_LIBS@ -march=native -Ofast -flto -lm -lpthread
 
 cCC=@CC@
 

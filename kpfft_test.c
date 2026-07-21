@@ -1,4 +1,4 @@
-/* Program for benchmarking of my_fft library. */
+/* Program for benchmarking of kpfft library. */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,7 +31,7 @@
 #define ACCURACY_CONTROL
 
 /* FFTW method uses best value from 10 runs */
-#define RUNS_NUMBER 10
+#define RUNS_NUMBER_DEFAULT 10
 #define _FORGET_WISDOM_BEFORE_FFTW
 #define _READ_THR_WISDOM_FOR_FFTW
 #define _SAVE_THR_WISDOM_FOR_FFTW
@@ -245,7 +245,7 @@ const char *wisdom_base = "wisdom";
 
 int main (int argc, char** argv) {
 	double mismatch=0.0, seconds, my_seconds_min, FFTW_seconds_min, ops, MFLOPS, my_MFLOPS_max, FFTW_MFLOPS_max;
-	unsigned long int i, runs;
+	unsigned long int i;
 	FILE *f_p;
 	fftw_plan normal_plan;
 	kpfft_plan plan_fwd;
@@ -253,6 +253,7 @@ int main (int argc, char** argv) {
 	char *output = NULL;
 	long int cpu0, cpu1;
 	int mode;
+	int runs, RUNS_NUMBER = RUNS_NUMBER_DEFAULT;
 
 	/*Parsing command line.*/
 	if (argc < 6)
@@ -261,6 +262,9 @@ int main (int argc, char** argv) {
 		printf("%s (c|r2c|c2r) NX NY num_of_repeats number_of_threads [output_file]\n", argv[0]);
 		exit (1);
 	}
+
+
+
 
 	if (strcmp(argv[1], "c") == 0)
 		mode = MODE_C;
@@ -280,6 +284,16 @@ int main (int argc, char** argv) {
 	
 	if (argc > 6) {
 		output = argv[6];
+	} else {
+		output = strdup("default");
+	}
+
+	if (getenv("RUNS_NUMBER") != NULL) {
+		RUNS_NUMBER = atoi(getenv("RUNS_NUMBER"));
+	}
+
+	if (mode == MODE_C2R && (RUNS_NUMBER > 1 || num_reps > 1)) {
+		printf("C2R transform destroys input array, so accuracy check will give false results.\nTo check accurary, set num_of_repeats=1 and set env variable RUNS_NUMBER=1\n");
 	}
 	
 #ifdef VARIABLE_BLOCK_SIDE
@@ -369,7 +383,7 @@ int main (int argc, char** argv) {
 		seconds = measure_end();
 		cpu1 = get_cpu();
 
-		printf ("Time for %lu Fourier transform using my_fft is %.15e seconds (CPU - %f sec).\n", num_reps, seconds, 1.*(cpu1-cpu0)/100);
+		printf ("Time for %lu Fourier transform using kpfft is %.15e seconds (CPU - %f sec).\n", num_reps, seconds, 1.*(cpu1-cpu0)/100);
 		MFLOPS = (1.0e-6)*num_reps*ops/seconds;
 		if (MFLOPS > my_MFLOPS_max) {
 			my_MFLOPS_max = MFLOPS;
@@ -510,7 +524,7 @@ int main (int argc, char** argv) {
 			break;
 			}
 	}
-	printf ("Mismatch between my_fft and fftw = %.15e\n", mismatch);
+	printf ("Mismatch between kpfft and fftw = %.15e\n", mismatch);
 
 #endif /* ACCURACY_CONTROL */
 

@@ -1,8 +1,8 @@
 
 CFLAGS=-march=native -Ofast -g -flto -std=gnu99 -W -pedantic -Wcast-qual -Wpointer-arith -Wcast-align \
-	-mavx2 -mfma -ffast-math -g -O2 -I../../fftw-bin/include
+	-mavx2 -mfma -ffast-math -g -O2 
 
-LDFLAGS= -static -L../../fftw-bin/lib -lfftw3_threads -lfftw3 -lm -lpthread
+LDFLAGS= -static -lfftw3_threads -lfftw3 -lm -lpthread
 
 cCC=gcc
 
