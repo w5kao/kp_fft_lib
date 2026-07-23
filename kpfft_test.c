@@ -36,7 +36,8 @@
 #define _READ_THR_WISDOM_FOR_FFTW
 #define _SAVE_THR_WISDOM_FOR_FFTW
 
-#define PLAN_FLAGS FFTW_MEASURE
+#define KPFFT_PLAN_FLAGS FFTW_PATIENT
+#define FFTW_PLAN_FLAGS FFTW_MEASURE
 //#define PLAN_FLAGS FFTW_PATIENT
 //#define PLAN_FLAGS FFTW_EXAUSTIVE
 
@@ -263,9 +264,6 @@ int main (int argc, char** argv) {
 		exit (1);
 	}
 
-
-
-
 	if (strcmp(argv[1], "c") == 0)
 		mode = MODE_C;
 	else if (strcmp(argv[1], "c2r") == 0)
@@ -335,21 +333,26 @@ int main (int argc, char** argv) {
 //	fftw_init_threads();
 //	fftw_plan_with_nthreads(1);
 
-	snprintf(wisdom, sizeof(wisdom), "%s_1d.%s.t%lu.f%i", wisdom_base, output, threads_number, PLAN_FLAGS);
+//	snprintf(wisdom, sizeof(wisdom), "%s_1d.%s.t%lu.f%i", wisdom_base, output, threads_number, KPFFT_PLAN_FLAGS);
+	snprintf(wisdom, sizeof(wisdom), "%s_1d.%s.n%lu.f%i", wisdom_base, output, NX, KPFFT_PLAN_FLAGS);
 	load_wisdom(wisdom);
+
+	if (getenv("PLAN_LIMIT") != NULL) {
+		fftw_set_timelimit(atof(getenv("PLAN_LIMIT")));
+	}
 
 	clock_gettime(CLOCK_MONOTONIC, &start);
 
 	measure_start();
 	switch(mode) {
 		case MODE_C:
-			plan_fwd = kpfft_plan_dft_2d (in, out, out2, NX, NY, +1, PLAN_FLAGS, threads_number);
+			plan_fwd = kpfft_plan_dft_2d (in, out, out2, NX, NY, +1, KPFFT_PLAN_FLAGS, threads_number);
 			break;
 		case MODE_C2R:
-			plan_fwd = kpfft_plan_dft_c2r_2d (in, (double*)out, out2, NX, NY, +1, PLAN_FLAGS, threads_number);
+			plan_fwd = kpfft_plan_dft_c2r_2d (in, (double*)out, out2, NX, NY, +1, KPFFT_PLAN_FLAGS, threads_number);
 			break;
 		case MODE_R2C:
-			plan_fwd = kpfft_plan_dft_r2c_2d ((double*)in, out, out2, NX, NY, -1, PLAN_FLAGS, threads_number);
+			plan_fwd = kpfft_plan_dft_r2c_2d ((double*)in, out, out2, NX, NY, -1, KPFFT_PLAN_FLAGS, threads_number);
 			break;
 	}
 	seconds = measure_end();
@@ -432,7 +435,7 @@ int main (int argc, char** argv) {
 		fftw_plan_with_nthreads(threads_number);
 	}
 
-	snprintf(wisdom, sizeof(wisdom), "%s_2d.%s.t%lu.f%i", wisdom_base, output, threads_number, PLAN_FLAGS);
+	snprintf(wisdom, sizeof(wisdom), "%s_2d.%s.t%lu.f%i", wisdom_base, output, threads_number, FFTW_PLAN_FLAGS);
 
 #ifdef READ_THR_WISDOM_FOR_FFTW
 	load_wisdom(wisdom);
@@ -441,13 +444,13 @@ int main (int argc, char** argv) {
 	measure_start();
 	switch(mode) {
 		case MODE_C:
-			normal_plan = fftw_plan_dft_2d(NX, NY, in, out2, +1, PLAN_FLAGS);
+			normal_plan = fftw_plan_dft_2d(NX, NY, in, out2, +1, FFTW_PLAN_FLAGS);
 			break;
 		case MODE_C2R:
-			normal_plan = fftw_plan_dft_c2r_2d(NX, NY, in, (double*)out2, PLAN_FLAGS);
+			normal_plan = fftw_plan_dft_c2r_2d(NX, NY, in, (double*)out2, FFTW_PLAN_FLAGS);
 			break;
 		case MODE_R2C:
-			normal_plan = fftw_plan_dft_r2c_2d(NX, NY, (double*)in, out2, PLAN_FLAGS);
+			normal_plan = fftw_plan_dft_r2c_2d(NX, NY, (double*)in, out2, FFTW_PLAN_FLAGS);
 			break;
 	}
 	seconds = measure_end();
