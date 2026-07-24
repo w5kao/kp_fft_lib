@@ -30,6 +30,10 @@
 
 #define ACCURACY_CONTROL
 
+#ifdef __linux
+#define CPU_TIME
+#endif
+
 /* FFTW method uses best value from 10 runs */
 #define RUNS_NUMBER_DEFAULT 10
 #define _FORGET_WISDOM_BEFORE_FFTW
@@ -52,7 +56,7 @@ unsigned long int NX=0, NY=0, num_reps=0, threads_number=0;
 
 void complex_array_print (double complex *input, unsigned long int NX_size, unsigned long int NY_size);
 
-#ifdef __linux
+#ifdef CPU_TIME
 long int get_stat(int n) {
 
 	FILE *f;
@@ -87,15 +91,7 @@ long int get_stat(int n) {
 long int get_cpu() {
 	return get_stat(13);
 }
-
-#else
-
-long int get_cpu() {
-	return -1;
-}
-
 #endif
-
 
 
 
@@ -386,7 +382,11 @@ int main (int argc, char** argv) {
 		seconds = measure_end();
 		cpu1 = get_cpu();
 
-		printf ("Time for %lu Fourier transform using kpfft is %.15e seconds (CPU - %f sec).\n", num_reps, seconds, 1.*(cpu1-cpu0)/100);
+		printf ("Time for %lu Fourier transform using kpfft is %.15e seconds", num_reps, seconds);
+#ifdef CPU_TIME
+		printf(" (CPU - %f s)", 1.*(cpu1-cpu0)/100);
+#endif
+		printf("\n");
 		MFLOPS = (1.0e-6)*num_reps*ops/seconds;
 		if (MFLOPS > my_MFLOPS_max) {
 			my_MFLOPS_max = MFLOPS;
@@ -481,7 +481,11 @@ int main (int argc, char** argv) {
 		seconds = measure_end();
 		cpu1 = get_cpu();
 
-		printf ("Time for %lu Fourier transform using FFTW is %.15e seconds (CPU - %f sec).\n", num_reps, seconds, 1.*(cpu1-cpu0)/100);
+		printf ("Time for %lu Fourier transform using FFTW is %.15e seconds", num_reps, seconds);
+#ifdef CPU_TIME
+		printf(" (CPU - %f s)", 1.*(cpu1-cpu0)/100);
+#endif
+		printf("\n");
 		MFLOPS = (1.0e-6)*num_reps*ops/seconds;
 		if (MFLOPS > FFTW_MFLOPS_max) {
 			FFTW_MFLOPS_max = MFLOPS;

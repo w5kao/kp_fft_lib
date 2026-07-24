@@ -1,6 +1,6 @@
 
 CFLAGS=-march=native -Ofast -g -flto -std=gnu99 -W -pedantic -Wcast-qual -Wpointer-arith -Wcast-align \
-	-mavx2 -mfma -ffast-math -g -O2 
+	-mavx2 -mfma -ffast-math -g -O2  -DVARIABLE_BLOCK_SIDE
 
 LDFLAGS= -static -lfftw3_threads -lfftw3 -lm -lpthread
 
