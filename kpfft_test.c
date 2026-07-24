@@ -31,7 +31,7 @@
 #define ACCURACY_CONTROL
 
 #ifdef __linux
-#define CPU_TIME
+#define SHOW_CPU_TIME
 #endif
 
 /* FFTW method uses best value from 10 runs */
@@ -56,7 +56,7 @@ unsigned long int NX=0, NY=0, num_reps=0, threads_number=0;
 
 void complex_array_print (double complex *input, unsigned long int NX_size, unsigned long int NY_size);
 
-#ifdef CPU_TIME
+#ifdef SHOW_CPU_TIME
 long int get_stat(int n) {
 
 	FILE *f;
@@ -383,7 +383,7 @@ int main (int argc, char** argv) {
 		cpu1 = get_cpu();
 
 		printf ("Time for %lu Fourier transform using kpfft is %.15e seconds", num_reps, seconds);
-#ifdef CPU_TIME
+#ifdef SHOW_CPU_TIME
 		printf(" (CPU - %f s)", 1.*(cpu1-cpu0)/100);
 #endif
 		printf("\n");
@@ -482,7 +482,7 @@ int main (int argc, char** argv) {
 		cpu1 = get_cpu();
 
 		printf ("Time for %lu Fourier transform using FFTW is %.15e seconds", num_reps, seconds);
-#ifdef CPU_TIME
+#ifdef SHOW_CPU_TIME
 		printf(" (CPU - %f s)", 1.*(cpu1-cpu0)/100);
 #endif
 		printf("\n");

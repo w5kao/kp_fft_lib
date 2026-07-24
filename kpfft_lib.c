@@ -240,7 +240,7 @@ static void _assign_plans(LIBNAME(plan) plan, int n, void *plans, fftw_complex *
 	int per_thread = (n+tnum-1)/tnum;
 
 	each_thread_elements = (n + tnum -1)/tnum;
-	if (each_thread_elements*(tnum-1) >= n) -- each_thread_elements;
+	if (each_thread_elements*(tnum-1) >= (unsigned long)n) -- each_thread_elements;
 	last_thread_elements = n - each_thread_elements*(tnum-1);
 
 	fftw_plan *temp_plan = plans;
