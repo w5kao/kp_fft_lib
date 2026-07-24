@@ -24,7 +24,6 @@
 #error OpenMP enabled but not used
 #endif
 
-
 #define VERBOSE
 #define _SUPER_VERBOSE
 
@@ -36,7 +35,6 @@
 #define _READ_THR_WISDOM_FOR_FFTW
 #define _SAVE_THR_WISDOM_FOR_FFTW
 
-#define KPFFT_PLAN_FLAGS FFTW_PATIENT
 #define FFTW_PLAN_FLAGS FFTW_MEASURE
 //#define PLAN_FLAGS FFTW_PATIENT
 //#define PLAN_FLAGS FFTW_EXAUSTIVE
@@ -47,6 +45,7 @@
 
 fftw_plan *plans_fwd_X, *plans_fwd_Y;
 double complex *in, *out, *out2;
+int KPFFT_PLAN_FLAGS = FFTW_PATIENT;
 
 unsigned long int NX=0, NY=0, num_reps=0, threads_number=0;
 
@@ -290,6 +289,14 @@ int main (int argc, char** argv) {
 		RUNS_NUMBER = atoi(getenv("RUNS_NUMBER"));
 	}
 
+	if (getenv("WORK_DEFAULT") != NULL) {
+		WORK_DEFAULT = atoi(getenv("WORK_DEFAULT"));
+	}
+
+	if (getenv("PLAN_MEASURE") != NULL) {
+		KPFFT_PLAN_FLAGS = FFTW_MEASURE;
+	}
+
 	if (mode == MODE_C2R && (RUNS_NUMBER > 1 || num_reps > 1)) {
 		printf("C2R transform destroys input array, so accuracy check will give false results.\nTo check accurary, set num_of_repeats=1 and set env variable RUNS_NUMBER=1\n");
 	}
@@ -349,7 +356,7 @@ int main (int argc, char** argv) {
 			plan_fwd = kpfft_plan_dft_2d (in, out, out2, NX, NY, +1, KPFFT_PLAN_FLAGS, threads_number);
 			break;
 		case MODE_C2R:
-			plan_fwd = kpfft_plan_dft_c2r_2d (in, (double*)out, out2, NX, NY, +1, KPFFT_PLAN_FLAGS, threads_number);
+			plan_fwd = kpfft_plan_dft_c2r_2d (in, (double*)out, out2, NX, NY, +1, KPFFT_PLAN_FLAGS | FFTW_DESTROY_INPUT, threads_number);
 			break;
 		case MODE_R2C:
 			plan_fwd = kpfft_plan_dft_r2c_2d ((double*)in, out, out2, NX, NY, -1, KPFFT_PLAN_FLAGS, threads_number);

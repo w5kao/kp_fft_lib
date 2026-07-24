@@ -11,8 +11,9 @@
 int BLOCK_SIDE_SIZE = 8;
 #endif
 
-unsigned long int each_thread_elements, last_thread_elements;
+int WORK_DEFAULT = 64;
 
+static unsigned long int each_thread_elements, last_thread_elements;
 
 struct DFT_thread_input {
 	void *plan;
@@ -61,9 +62,9 @@ static void _exec_c2r(LIBNAME(plan));
 static void _exec_r2c(LIBNAME(plan));
 
 /* Helpers to generate FFTW plans */
-static void _create_plans_list(LIBNAME(plan) return_plan, int DIR, unsigned FLAGS, int n, fftw_plan *dst, int sz, double complex *from, double complex *to, int tnum);
-static void _create_plans_list_r2c(LIBNAME(plan) return_plan, int DIR, unsigned FLAGS, int n, fftw_plan *dst, int sz, double *from, double complex *to, int tnum);
-static void _create_plans_list_c2r(LIBNAME(plan) return_plan, int DIR, unsigned FLAGS, int n, fftw_plan *dst, int sz, double complex *from, double *to, int tnum);
+static void _create_plans_list(LIBNAME(plan) return_plan, int DIR, unsigned FLAGS, int n, struct _plan_list *dst, int sz, double complex *from, double complex *to, int tnum);
+static void _create_plans_list_r2c(LIBNAME(plan) return_plan, int DIR, unsigned FLAGS, int n, struct _plan_list *dst, int sz, double *from, double complex *to, int tnum);
+static void _create_plans_list_c2r(LIBNAME(plan) return_plan, int DIR, unsigned FLAGS, int n, struct _plan_list *dst, int sz, double complex *from, double *to, int tnum);
 
 static LIBNAME(plan) _base_plan(double complex *input, double complex *output, double complex *scratch_array, unsigned long int NX_size, unsigned long int NY_size, unsigned long int number_of_threads) {
 
@@ -83,9 +84,6 @@ static LIBNAME(plan) _base_plan(double complex *input, double complex *output, d
 	return_plan->scratch_array = scratch_array;
 	return_plan->number_of_threads = tnum;
 
-	return_plan->plans_Y = malloc(tnum*sizeof(fftw_plan)); assert(return_plan->plans_Y != NULL);
-	return_plan->plans_X = malloc(tnum*sizeof(fftw_plan)); assert(return_plan->plans_X != NULL);
-
 	return return_plan;
 }
 
@@ -100,12 +98,12 @@ LIBNAME(plan) LIBNAME(plan_dft_2d) (double complex *input, double complex *outpu
 
 #ifdef INPLACE_TR
 	if ((return_plan->input == return_plan->output) && (NX_size == NY_size) && number_of_threads > 0) {
-		_create_plans_list(return_plan, DIR, FLAGS, NX_size, return_plan->plans_Y, NY_size, return_plan->input, return_plan->input, tnum);
-		_create_plans_list(return_plan, DIR, FLAGS, NY_size, return_plan->plans_X, NX_size, return_plan->input, return_plan->input, tnum);
+		_create_plans_list(return_plan, DIR, FLAGS, NX_size, & return_plan->Y, NY_size, return_plan->input, return_plan->input, tnum);
+		_create_plans_list(return_plan, DIR, FLAGS, NY_size, & return_plan->X, NX_size, return_plan->input, return_plan->input, tnum);
 		return_plan->exec = _exec_dft_inplace;
 	} else if (NX_size == NY_size  && number_of_threads > 0) {
-		_create_plans_list(return_plan, DIR, FLAGS, NX_size, return_plan->plans_Y, NY_size, return_plan->input, return_plan->output, tnum);
-		_create_plans_list(return_plan, DIR, FLAGS, NY_size, return_plan->plans_X, NX_size, return_plan->output, return_plan->output, tnum);
+		_create_plans_list(return_plan, DIR, FLAGS, NX_size, & return_plan->Y, NY_size, return_plan->input, return_plan->output, tnum);
+		_create_plans_list(return_plan, DIR, FLAGS, NY_size, & return_plan->X, NX_size, return_plan->output, return_plan->output, tnum);
 		return_plan->exec = _exec_dft_tr_inplace;
 	} else 
 #endif
@@ -113,8 +111,8 @@ LIBNAME(plan) LIBNAME(plan_dft_2d) (double complex *input, double complex *outpu
 		fprintf(stderr, "Inplace DFT not supported.\n");
 		exit(2);
 	} else {
-		_create_plans_list(return_plan, DIR, FLAGS, NX_size, return_plan->plans_Y, NY_size, return_plan->input, return_plan->scratch_array, tnum);
-		_create_plans_list(return_plan, DIR, FLAGS, NY_size, return_plan->plans_X, NX_size, return_plan->output, return_plan->scratch_array, tnum);
+		_create_plans_list(return_plan, DIR, FLAGS, NX_size, & return_plan->Y, NY_size, return_plan->input, return_plan->scratch_array, tnum);
+		_create_plans_list(return_plan, DIR, FLAGS, NY_size, & return_plan->X, NX_size, return_plan->output, return_plan->scratch_array, tnum);
 		return_plan->exec = (number_of_threads == 0) ? _exec_dft_0 : _exec_dft;
 	}
 
@@ -129,8 +127,8 @@ LIBNAME(plan) LIBNAME(plan_dft_r2c_2d) (double *input, double complex *output, d
 
 	int tnum = return_plan->number_of_threads;
 
-	_create_plans_list_r2c(return_plan, DIR, FLAGS, NX_size, return_plan->plans_Y, NY_size, (double*)return_plan->input, return_plan->scratch_array, tnum);
-	_create_plans_list(return_plan, DIR, FLAGS, NY_size/2+1, return_plan->plans_X, NX_size, return_plan->output, return_plan->scratch_array, tnum);
+	_create_plans_list_r2c(return_plan, DIR, FLAGS, NX_size, & return_plan->Y, NY_size, (double*)return_plan->input, return_plan->scratch_array, tnum);
+	_create_plans_list(return_plan, DIR, FLAGS, NY_size/2+1, & return_plan->X, NX_size, return_plan->output, return_plan->scratch_array, tnum);
 	return_plan->exec = _exec_r2c;
 
 	return (LIBNAME(plan)) return_plan;
@@ -140,33 +138,35 @@ LIBNAME(plan) LIBNAME(plan_dft_c2r_2d) (double complex *input, double *output, d
 	unsigned long int i;
 	double complex *temp_u, *temp_u_omega;
 
+	if (! (FLAGS & FFTW_DESTROY_INPUT)) {
+		fprintf(stderr, "C2R routines are destroying input.\nTo accept this, please add FFTW_DESTROY_INPUT to flags in call to %s.\n", __func__);
+		abort();
+	}
+
 	LIBNAME(plan) return_plan = _base_plan(input, (double complex*)output, scratch_array, NX_size, NY_size, number_of_threads);
 
 	int tnum = return_plan->number_of_threads;
 
-	_create_plans_list(return_plan, DIR, FLAGS, NY_size/2+1, return_plan->plans_X, NX_size, return_plan->scratch_array, return_plan->input, tnum);
-	_create_plans_list_c2r(return_plan, DIR, FLAGS, NX_size, return_plan->plans_Y, NY_size, return_plan->scratch_array, (double*)return_plan->output, tnum);
+	_create_plans_list(return_plan, DIR, FLAGS, NY_size/2+1, & return_plan->X, NX_size, return_plan->scratch_array, return_plan->input, tnum);
+	_create_plans_list_c2r(return_plan, DIR, FLAGS, NX_size, & return_plan->Y, NY_size, return_plan->scratch_array, (double*)return_plan->output, tnum);
 	return_plan->exec = _exec_c2r;
 
 	return (LIBNAME(plan)) return_plan;
 }
 
-void LIBNAME(destroy_plan) (LIBNAME(plan) plan) {
-	int i;
-	int tnum = plan->number_of_threads;
-	fftw_plan *temp_plan;
-	
-	temp_plan = plan->plans_X;
-	for (i=0; i < tnum; ++i) {
-		fftw_destroy_plan((*temp_plan));
-		++temp_plan;
-	}
 
-	temp_plan = plan->plans_Y;
-	for (i=0; i < tnum; ++i) {
-		fftw_destroy_plan((*temp_plan));
-		++temp_plan;
+static void _destroy_plan_list(struct _plan_list *plans) {
+
+	for (int i = 0; i < plans->n; ++i) {
+		fftw_destroy_plan(plans->plans[i]);
 	}
+	free(plans->plans);
+}
+
+void LIBNAME(destroy_plan) (LIBNAME(plan) plan) {
+
+	_destroy_plan_list(& plan->X);
+	_destroy_plan_list(& plan->Y);
 
 	free (plan);
 }
@@ -175,46 +175,82 @@ void LIBNAME(execute) (LIBNAME(plan) plan) {
 	plan->exec(plan);
 }
 
+/*
+ * Using advanced FFTW API to runmultiple 1d transforms in one call
+ * It is possible to run all transforms for single thread in one call, but planning with FFTW_PATIENT and higher
+ * becomes VERY long at large sizes.
+ */
+static void _setup_plan_list(int n, struct _plan_list *dst, int tnum) {
 
-static void _create_plans_list(LIBNAME(plan) return_plan, int DIR, unsigned FLAGS, int n, fftw_plan *dst, int sz, double complex *from, double complex *to, int tnum) {
+	/* At least one plan per thread */
+	assert(n > tnum);
+
+	int per_thread = (n + tnum-1)/tnum;
+	int work_per_call = WORK_DEFAULT;
+
+	if (2*per_thread < WORK_DEFAULT) {
+		work_per_call = per_thread;
+	} else {
+		/* 
+		 * Try to split each thread part evenly
+		 */
+		for (int i = 6; i > 0; -- i) {
+			if (per_thread % (WORK_DEFAULT/2*i) == 0) {
+				work_per_call = WORK_DEFAULT/2*i;
+				break;
+			}
+		}
+	}
+
+	int num_plans = (n + work_per_call - 1)/work_per_call;
+	dst->plans = (fftw_plan*)malloc(num_plans*sizeof(fftw_plan)); assert(dst->plans != NULL);
+	dst->per_call = work_per_call;
+	dst->n = num_plans;
+
+	printf("DFT per call = %i (total %i plans)\n", work_per_call, num_plans);
+}
+
+
+static void _create_plans_list(LIBNAME(plan) return_plan, int DIR, unsigned FLAGS, int n, struct _plan_list *dst, int sz, double complex *from, double complex *to, int tnum) {
 
 	(void)return_plan;
-
-	int per_thread = (n+tnum-1)/tnum;
 	const int shape = sz;
 
-	if (per_thread < tnum) -- per_thread;
-
-	for (int i = 0; i < tnum; ++i) {
+	_setup_plan_list(n, dst, tnum);
 	
-		int work = (i == tnum-1) ? n-(tnum-1)*per_thread : per_thread;
-		dst[i] = fftw_plan_many_dft (
+	int work_per_call = dst->per_call;
+	int num_plans = dst->n;
+
+	for (int i = 0; i < num_plans; ++i) {
+	
+		int work = (i == num_plans-1) ? n-(num_plans-1)*work_per_call : work_per_call;
+		dst->plans[i] = fftw_plan_many_dft (
 			1, & shape, work,
 			from, & shape, 1, sz,
 			to, NULL, 1, sz,
 			DIR, FLAGS
-		); assert(dst[i] != NULL);
+		); assert(dst->plans[i] != NULL);
 
 		from += work*sz;
 		to += work*sz;
 	}
 }
 
-
-static void _create_plans_list_r2c(LIBNAME(plan) return_plan, int DIR, unsigned FLAGS, int n, fftw_plan *dst, int sz, double *from, double complex *to, int tnum) {
+static void _create_plans_list_r2c(LIBNAME(plan) return_plan, int DIR, unsigned FLAGS, int n, struct _plan_list *dst, int sz, double *from, double complex *to, int tnum) {
 
 	(void)return_plan;
 	(void)DIR;
 
 	size_t dst_stride = sz/2+1;
-	int per_thread = (n+tnum-1)/tnum;
 	const int shape = sz;
 
-	if (per_thread < tnum) -- per_thread;
+	_setup_plan_list(n, dst, tnum);
+	int work_per_call = dst->per_call;
+	int num_plans = dst->n;
 
-	for (int i = 0; i < tnum; ++i) {
-		int work = (i == tnum-1) ? n-(tnum-1)*per_thread : per_thread;
-		dst[i] = fftw_plan_many_dft_r2c (
+	for (int i = 0; i < num_plans; ++i) {
+		int work = (i == num_plans-1) ? n-(num_plans-1)*work_per_call : work_per_call;
+		dst->plans[i] = fftw_plan_many_dft_r2c (
 			1, & shape, work,
 			from, NULL, 1, sz,
 			to, NULL, 1, dst_stride,
@@ -225,20 +261,21 @@ static void _create_plans_list_r2c(LIBNAME(plan) return_plan, int DIR, unsigned 
 	}
 }
 
-static void _create_plans_list_c2r(LIBNAME(plan) return_plan, int DIR, unsigned FLAGS, int n, fftw_plan *dst, int sz, double complex *from, double *to, int tnum) {
+static void _create_plans_list_c2r(LIBNAME(plan) return_plan, int DIR, unsigned FLAGS, int n, struct _plan_list *dst, int sz, double complex *from, double *to, int tnum) {
 
 	(void)return_plan;
 	(void)DIR;
 
 	size_t src_stride = sz/2+1;
-	int per_thread = (n+tnum-1)/tnum;
 	const int shape =  sz;
 
-	if (per_thread < tnum) -- per_thread;
+	_setup_plan_list(n, dst, tnum);
+	int work_per_call = dst->per_call;
+	int num_plans = dst->n;
 
-	for (int i = 0; i < tnum; ++i) {
-		int work = (i == tnum-1) ? n-(tnum-1)*per_thread : per_thread;
-		dst[i] = fftw_plan_many_dft_c2r(
+	for (int i = 0; i < num_plans; ++i) {
+		int work = (i == num_plans-1) ? n-(num_plans-1)*work_per_call : work_per_call;
+		dst->plans[i] = fftw_plan_many_dft_c2r(
 			1, & shape, work,
 			from, NULL, 1, src_stride,
 			to, NULL, 1, sz,
@@ -249,46 +286,51 @@ static void _create_plans_list_c2r(LIBNAME(plan) return_plan, int DIR, unsigned 
 	}
 }
 
-static void _assign_plans(LIBNAME(plan) plan, void *plans, fftw_complex *input, fftw_complex *output, size_t sz) {
+static void _assign_plans(LIBNAME(plan) plan, int n, struct _plan_list *plans, fftw_complex *input, fftw_complex *output, size_t sz) {
 
 	(void)input;
+	(void)output;
 
 	int tnum = plan->number_of_threads;
+	int per_call = plans->per_call;
+	int num_calls = (n + per_call - 1)/per_call;
 
-	fftw_plan *temp_plan = plans;
+	each_thread_elements = (num_calls + tnum-1)/tnum;
+	if (each_thread_elements*(tnum-1) >= (unsigned long)num_calls) -- each_thread_elements;
+
+	last_thread_elements = num_calls - each_thread_elements*(tnum-1);
+
+	fftw_plan *temp_plan = plans->plans;
 	for (int i = 0; i < tnum; ++i) {
 		thr_array_DFT [i].plan = temp_plan;
-		thr_array_DFT [i].elements_number = each_thread_elements;
-		thr_array_DFT [i].output = output;
+		thr_array_DFT [i].elements_number = (i == tnum-1) ? last_thread_elements : each_thread_elements;
 		thr_array_DFT [i].sz = sz;
 		my_thr_data_assign (i,  (void *) &thr_array_DFT[i]);
-		temp_plan ++; //= each_thread_elements;
+		temp_plan += each_thread_elements;
+//		printf("T%i: %lu elements\n", i, thr_array_DFT [i].elements_number);
 	}
-	thr_array_DFT [tnum-1].elements_number = last_thread_elements;
 }
 
-void DFT_for_arrays_thr (void * input_thr) {
+void DFT_for_arrays_thr (void * _input) {
 
-	struct DFT_thread_input *input;
-	fftw_plan *temp_plan;
+	struct DFT_thread_input *input = (struct DFT_thread_input *) _input;
+	fftw_plan *temp_plan = input->plan;
 	unsigned long int i;
 
-	input = (struct DFT_thread_input *) input_thr;
-	temp_plan = input->plan;
-	fftw_execute(*temp_plan);
+	for (unsigned long i = 0; i < input->elements_number; ++ i)
+		fftw_execute(temp_plan[i]);
 }
 
 // "Plain" version for testing
 static void _exec_dft_0(LIBNAME(plan) plan) {
 
-	fftw_plan *temp_plan = plan->plans_Y;
-
-	fftw_execute(*temp_plan);
+	for (int i = 0; i < plan->Y.n; ++ i)
+		fftw_execute(plan->Y.plans[i]);
 
 	arrays_transpose (plan->scratch_array, plan->output, plan->NY_size, plan->NX_size);
 
-	temp_plan = plan->plans_X;
-	fftw_execute(*temp_plan);
+	for (int i = 0; i < plan->X.n; ++ i)
+		fftw_execute(plan->X.plans[i]);
 
 	arrays_transpose (plan->scratch_array, plan->output, plan->NX_size, plan->NY_size);
 }
@@ -296,12 +338,7 @@ static void _exec_dft_0(LIBNAME(plan) plan) {
 
 void test_fft(LIBNAME(plan) plan) {
 
-	int tnum = plan->number_of_threads;
-
-	each_thread_elements = (unsigned long int) (0.5 + (1.0*(plan->NX_size))/tnum);
-	last_thread_elements = plan->NX_size - each_thread_elements*(tnum-1);
-
-	_assign_plans(plan, plan->plans_Y, plan->input, plan->scratch_array, plan->NY_size);
+	_assign_plans(plan, plan->NX_size, & plan->Y, plan->input, plan->scratch_array, plan->NY_size);
 	my_thr_manager (DFT_for_arrays_thr);
 
 }
@@ -310,10 +347,7 @@ static void _exec_dft(LIBNAME(plan) plan) {
 
 	int tnum = plan->number_of_threads;
 
-	each_thread_elements = (unsigned long int) (0.5 + (1.0*(plan->NX_size))/tnum);
-	last_thread_elements = plan->NX_size - each_thread_elements*(tnum-1);
-
-	_assign_plans(plan, plan->plans_Y, plan->input, plan->scratch_array, plan->NY_size);
+	_assign_plans(plan, plan->NX_size, & plan->Y, plan->input, plan->scratch_array, plan->NY_size);
 	my_thr_manager (DFT_for_arrays_thr);
 
 //		dump2("fft", plan->scratch_array, plan->NY_size, plan->NX_size);
@@ -323,10 +357,7 @@ static void _exec_dft(LIBNAME(plan) plan) {
 
 //	x_arrays_transpose_with_threads (plan->scratch_array, plan->output, plan->NX_size, plan->NY_size, tnum);
 
-	each_thread_elements = (unsigned long int) (0.5 + (1.0*(plan->NY_size))/tnum);
-	last_thread_elements = plan->NY_size - each_thread_elements*(tnum-1);
-
-	_assign_plans(plan, plan->plans_X, plan->output, plan->scratch_array, plan->NX_size);
+	_assign_plans(plan, plan->NY_size, & plan->X, plan->output, plan->scratch_array, plan->NX_size);
 	my_thr_manager (DFT_for_arrays_thr);
 
 	arrays_transpose_with_threads_out (plan->scratch_array, plan->output, plan->NX_size, plan->NY_size, tnum);
@@ -343,18 +374,12 @@ static void _exec_dft_tr_inplace(LIBNAME(plan) plan) {
 
 	int tnum = plan->number_of_threads;
 
-	each_thread_elements = (unsigned long int) (0.5 + (1.0*(plan->NX_size))/(tnum));
-	last_thread_elements = plan->NX_size - each_thread_elements*(tnum-1);
-
-	_assign_plans(plan, plan->plans_Y, plan->input, plan->output, plan->NY_size);
+	_assign_plans(plan, plan->NX_size, & plan->Y, plan->input, plan->output, plan->NY_size);
 	my_thr_manager (DFT_for_arrays_thr);
 
 	arrays_transpose_with_threads_in (plan->output, plan->output, plan->NX_size, plan->NY_size, tnum);
 
-	each_thread_elements = (unsigned long int) (0.5 + (1.0*(plan->NY_size))/tnum);
-	last_thread_elements = plan->NY_size - each_thread_elements*(tnum-1);
-
-	_assign_plans(plan, plan->plans_X, plan->output, plan->output, plan->NX_size);
+	_assign_plans(plan, plan->NY_size, & plan->X, plan->output, plan->output, plan->NX_size);
 	my_thr_manager (DFT_for_arrays_thr);
 
 	arrays_transpose_with_threads_in (plan->output, plan->output, plan->NY_size, plan->NX_size, tnum);
@@ -368,18 +393,12 @@ static void _exec_dft_inplace(LIBNAME(plan) plan) {
 
 	int tnum = plan->number_of_threads;
 
-	each_thread_elements = (unsigned long int) (0.5 + (1.0*(plan->NX_size))/(tnum));
-	last_thread_elements = plan->NX_size - each_thread_elements*(tnum-1);
-
-	_assign_plans(plan, plan->plans_Y, plan->input, plan->input, plan->NY_size);
+	_assign_plans(plan, plan->NX_size, & plan->Y, plan->input, plan->input, plan->NY_size);
 	my_thr_manager (DFT_for_arrays_thr);
 
 	arrays_transpose_with_threads_in (plan->input, plan->input, plan->NX_size, plan->NY_size, tnum);
 
-	each_thread_elements = (unsigned long int) (0.5 + (1.0*(plan->NY_size))/tnum);
-	last_thread_elements = plan->NY_size - each_thread_elements*(tnum-1);
-
-	_assign_plans(plan, plan->plans_X, plan->input, plan->input, plan->NX_size);
+	_assign_plans(plan, plan->NY_size, & plan->X, plan->input, plan->input, plan->NX_size);
 	my_thr_manager (DFT_for_arrays_thr);
 
 	arrays_transpose_with_threads_in (plan->input, plan->input, plan->NY_size, plan->NX_size, tnum);
@@ -392,19 +411,12 @@ static void _exec_r2c(LIBNAME(plan) plan) {
 	int nx = plan->NX_size;
 	int ny2 = plan->NY_size/2+1;
 
-
-	each_thread_elements = (nx + tnum-1)/tnum;
-	last_thread_elements = nx - each_thread_elements*(tnum-1);
-
-	_assign_plans(plan, plan->plans_Y, plan->input, plan->scratch_array, plan->NY_size);
+	_assign_plans(plan, nx, & plan->Y, plan->input, plan->scratch_array, plan->NY_size);
 	my_thr_manager (DFT_for_arrays_thr);
 
 	arrays_transpose_with_threads_out (plan->scratch_array, plan->output, ny2, plan->NX_size, tnum);
 
-	each_thread_elements = (ny2 + tnum-1)/tnum;
-	last_thread_elements = ny2 - each_thread_elements*(tnum-1);
-
-	_assign_plans(plan, plan->plans_X, plan->output, plan->scratch_array, nx);
+	_assign_plans(plan, ny2, & plan->X, plan->output, plan->scratch_array, nx);
 	my_thr_manager (DFT_for_arrays_thr);
 
 	arrays_transpose_with_threads_out (plan->scratch_array, plan->output, nx, ny2, tnum);
@@ -420,23 +432,15 @@ static void _exec_c2r(LIBNAME(plan) plan) {
 
 	arrays_transpose_with_threads_out (plan->input, plan->scratch_array, ny2, plan->NX_size, tnum);
 
-	each_thread_elements = (ny2 + tnum-1)/tnum;
-	last_thread_elements = ny2 - each_thread_elements*(tnum-1);
-
-	_assign_plans(plan, plan->plans_X, plan->scratch_array, plan->input, nx);
+	_assign_plans(plan, ny2, & plan->X, plan->scratch_array, plan->input, nx);
 	my_thr_manager (DFT_for_arrays_thr);
 
 	arrays_transpose_with_threads_out (plan->input, plan->scratch_array, nx, ny2, tnum);
 
-	each_thread_elements = (nx + tnum-1)/tnum;
-	last_thread_elements = nx - each_thread_elements*(tnum-1);
-
-	_assign_plans(plan, plan->plans_Y, plan->input, plan->scratch_array, plan->NY_size);
+	_assign_plans(plan, nx, & plan->Y, plan->input, plan->scratch_array, plan->NY_size);
 	my_thr_manager (DFT_for_arrays_thr);
 
 }
-
-
 
 static inline void unit_transpose (double complex *in, double complex *out, int in_stride, int out_stride, int r_len) {
 

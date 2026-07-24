@@ -25,9 +25,17 @@
 
 #define LIBNAME(x) kpfft_ ## x
 
+extern int WORK_DEFAULT;
+
+struct _plan_list {
+	fftw_plan *plans;
+	int n;
+	int per_call;
+};
+
 typedef struct my_plan {
-	void *plans_X, *plans_Y;
-	int plans_X_n, plans_Y_n;
+	struct _plan_list X;
+	struct _plan_list Y;
 	int NX_size, NY_size, number_of_threads;
 	fftw_complex *input, *output, *scratch_array;
 	void (*exec)(struct my_plan *);
