@@ -11,7 +11,7 @@
 int BLOCK_SIDE_SIZE = 8;
 #endif
 
-int WORK_DEFAULT = 64;
+int WORK_DEFAULT = 0; /* Default 0: all thread data is passed to one fftw call */
 
 static unsigned long int each_thread_elements, last_thread_elements;
 
@@ -188,7 +188,7 @@ static void _setup_plan_list(int n, struct _plan_list *dst, int tnum) {
 	int per_thread = (n + tnum-1)/tnum;
 	int work_per_call = WORK_DEFAULT;
 
-	if (2*per_thread < WORK_DEFAULT) {
+	if (WORK_DEFAULT == 0 || (2*per_thread < WORK_DEFAULT)) {
 		work_per_call = per_thread;
 	} else {
 		/* 

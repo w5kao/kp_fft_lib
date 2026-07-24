@@ -29,6 +29,10 @@
 
 #define ACCURACY_CONTROL
 
+#ifdef __linux
+#define SHOW_CPU_TIME
+#endif
+
 /* FFTW method uses best value from 10 runs */
 #define RUNS_NUMBER_DEFAULT 10
 #define _FORGET_WISDOM_BEFORE_FFTW
@@ -45,13 +49,13 @@
 
 fftw_plan *plans_fwd_X, *plans_fwd_Y;
 double complex *in, *out, *out2;
-int KPFFT_PLAN_FLAGS = FFTW_PATIENT;
+int KPFFT_PLAN_FLAGS = FFTW_MEASURE;
 
 unsigned long int NX=0, NY=0, num_reps=0, threads_number=0;
 
 void complex_array_print (double complex *input, unsigned long int NX_size, unsigned long int NY_size);
 
-#ifdef __linux
+#ifdef SHOW_CPU_TIME
 long int get_stat(int n) {
 
 	FILE *f;
@@ -86,18 +90,7 @@ long int get_stat(int n) {
 long int get_cpu() {
 	return get_stat(13);
 }
-
-#else
-
-long int get_cpu() {
-	return -1;
-}
-
 #endif
-
-
-
-
 
 double complex_array_control_sum (double complex *input, unsigned long int num_els) {
 	unsigned long int i;
@@ -293,8 +286,8 @@ int main (int argc, char** argv) {
 		WORK_DEFAULT = atoi(getenv("WORK_DEFAULT"));
 	}
 
-	if (getenv("PLAN_MEASURE") != NULL) {
-		KPFFT_PLAN_FLAGS = FFTW_MEASURE;
+	if (getenv("PLAN_PATIENT") != NULL) {
+		KPFFT_PLAN_FLAGS = FFTW_PATIENT;
 	}
 
 	if (mode == MODE_C2R && (RUNS_NUMBER > 1 || num_reps > 1)) {
@@ -324,17 +317,16 @@ int main (int argc, char** argv) {
 
 	size_t sz = (NX)*(NY)*sizeof(double complex);
 
-	in = (double complex*) fftw_malloc (sz);
-	out = (double complex*) fftw_malloc (sz);
+	in   = (double complex*) fftw_malloc (sz);
+	out  = (double complex*) fftw_malloc (sz);
 	out2 = (double complex*) fftw_malloc (sz);
 
 	if (getenv("CPU_AFF") != NULL && threads_number > 0) {
-	printf("Setting CPU affinity ...\n");
-	set_aff(threads_number);
-	set_mem_owner(in, sz, threads_number);
-	set_mem_owner(out, sz, threads_number);
-	set_mem_owner(out2, sz, threads_number);
-
+		printf("Setting CPU affinity ...\n");
+		set_aff(threads_number);
+		set_mem_owner(in, sz, threads_number);
+		set_mem_owner(out, sz, threads_number);
+		set_mem_owner(out2, sz, threads_number);
 	}
 
 //	fftw_init_threads();
@@ -393,7 +385,11 @@ int main (int argc, char** argv) {
 		seconds = measure_end();
 		cpu1 = get_cpu();
 
-		printf ("Time for %lu Fourier transform using kpfft is %.15e seconds (CPU - %f sec).\n", num_reps, seconds, 1.*(cpu1-cpu0)/100);
+		printf ("Time for %lu Fourier transform using kpfft is %.15e seconds", num_reps, seconds);
+#ifdef SHOW_CPU_TIME
+		printf(" (CPU - %f s)", 1.*(cpu1-cpu0)/100);
+#endif
+		printf("\n");
 		MFLOPS = (1.0e-6)*num_reps*ops/seconds;
 		if (MFLOPS > my_MFLOPS_max) {
 			my_MFLOPS_max = MFLOPS;
@@ -488,7 +484,11 @@ int main (int argc, char** argv) {
 		seconds = measure_end();
 		cpu1 = get_cpu();
 
-		printf ("Time for %lu Fourier transform using FFTW is %.15e seconds (CPU - %f sec).\n", num_reps, seconds, 1.*(cpu1-cpu0)/100);
+		printf ("Time for %lu Fourier transform using FFTW is %.15e seconds", num_reps, seconds);
+#ifdef SHOW_CPU_TIME
+		printf(" (CPU - %f s)", 1.*(cpu1-cpu0)/100);
+#endif
+		printf("\n");
 		MFLOPS = (1.0e-6)*num_reps*ops/seconds;
 		if (MFLOPS > FFTW_MFLOPS_max) {
 			FFTW_MFLOPS_max = MFLOPS;
@@ -496,7 +496,6 @@ int main (int argc, char** argv) {
 		}
 	}
 	printf ("MFLOPs = %lf\n", FFTW_MFLOPS_max);
-	printf ("Eff. CPUs = %f\n", 1.*(cpu1-cpu0)/100/seconds);
 #ifdef VERBOSE
 	switch(mode) {
 		case MODE_C:
