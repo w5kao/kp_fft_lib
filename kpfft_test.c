@@ -396,7 +396,7 @@ int main (int argc, char** argv) {
 	printf ("MFLOPs = %lf\n", my_MFLOPS_max);
 //	printf ("Eff. CPUs = %f\n", 1.*(cpu1-cpu0)/100/seconds);
 
-#ifdef VERBOSE
+#ifdef SUPER_VERBOSE
 	switch(mode) {
 		case MODE_C:
 		case MODE_R2C:
@@ -412,7 +412,7 @@ int main (int argc, char** argv) {
 			break;
 			}
 	}
-#endif /* VERBOSE */
+#endif /* SUPER_VERBOSE */
 
 	kpfft_destroy_plan (plan_fwd);
 
@@ -489,8 +489,8 @@ int main (int argc, char** argv) {
 		}
 	}
 	printf ("MFLOPs = %lf\n", FFTW_MFLOPS_max);
+#ifdef SUPER_VERBOSE
 	printf ("Eff. CPUs = %f\n", 1.*(cpu1-cpu0)/100/seconds);
-#ifdef VERBOSE
 	switch(mode) {
 		case MODE_C:
 		case MODE_R2C:
@@ -506,28 +506,38 @@ int main (int argc, char** argv) {
 			break;
 			}
 	}
-#endif /* VERBOSE */
+#endif /* SUPER_VERBOSE */
 
 	fftw_destroy_plan (normal_plan);
 	fflush(stdout);
+
+#ifdef VERBOSE
+	double infty_norm = 0.0;
 
 	switch(mode) {
 		case MODE_C:
 		case MODE_R2C:
 			for (i = 0; i < NX*NY; ++i) {
-				mismatch += cabs(out[i] - out2[i]);
+				mismatch = cabs(out[i] - out2[i]);
+				if (infty_norm < mismatch) {
+					infty_norm = mismatch;
+				}
 			}
 			break;
 		case MODE_C2R: {
 			double* out_r1 = (double*)out;
 			double* out_r2 = (double*)out2;
 			for (i = 0; i < NX*NY; ++i) {
-				mismatch += fabs(out_r1[i] - out_r2[i]);
+				mismatch = fabs(out_r1[i] - out_r2[i]);
+				if (infty_norm < mismatch) {
+					infty_norm = mismatch;
+				}
 			}
 			break;
 			}
 	}
-	printf ("Mismatch between kpfft and fftw = %.15e\n", mismatch);
+	printf ("Normed L_infty norm: ||Mismatch between kpfft and FFTW||_infty/(NX*NY) = %.15e.\n", infty_norm/(NX*NY)); 
+#endif /* VERBOSE */
 
 #endif /* ACCURACY_CONTROL */
 
