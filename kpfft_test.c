@@ -355,7 +355,7 @@ int main (int argc, char** argv) {
 			break;
 	}
 	seconds = measure_end();
-	printf ("MY plan created, elapsed:  %e sec\n", seconds);
+	printf ("KP plan created, elapsed:  %e sec\n", seconds);
 
 	save_wisdom(wisdom);
 
